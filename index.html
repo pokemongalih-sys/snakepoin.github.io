@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Snake Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: white;
+            touch-action: manipulation; /* Prevent zoom on double tap */
+        }
+        .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+        canvas {
+            image-rendering: pixelated;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
+        }
+        .crt-overlay {
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+        
+        /* Custom scrollbar for leaderboard */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Header -->
+    <div class="text-center mb-6">
+        <h1 class="text-3xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600 pixel-font mb-2 tracking-wider drop-shadow-[0_0_10px_rgba(34,197,94,0.8)]">
+            NEON SNAKE
+        </h1>
+        <p class="text-gray-400 text-sm">Eat to grow. Don't hit the walls.</p>
+    </div>
+
+    <div class="flex flex-col lg:flex-row gap-8 w-full max-w-5xl justify-center items-start">
+        
+        <!-- Game Area Container -->
+        <div class="flex flex-col items-center w-full lg:w-auto">
+            <!-- Score Board -->
+            <div class="flex justify-between w-full max-w-[400px] mb-3 px-4 py-3 bg-slate-800 rounded-xl border border-slate-700 shadow-lg">
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">Score</span>
+                    <span id="scoreDisplay" class="text-2xl font-bold text-white pixel-font">0</span>
+                </div>
+                <div class="flex flex-col text-right">
+                    <span class="text-xs text-slate-400 font-bold uppercase tracking-wider">High Score</span>
+                    <span id="highScoreDisplay" class="text-2xl font-bold text-green-400 pixel-font">0</span>
+                </div>
+            </div>
+
+            <!-- Canvas Container -->
+            <div class="relative bg-black rounded-xl overflow-hidden border-2 border-slate-700 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+                <canvas id="gameCanvas" width="400" height="400" class="block w-full max-w-[400px] h-auto aspect-square"></canvas>
+                <div class="absolute inset-0 crt-overlay"></div>
+
+                <!-- Game Over Modal -->
+                <div id="gameOverModal" class="hidden absolute inset-0 bg-black/85 flex-col items-center justify-center p-6 z-10">
+                    <h2 class="text-3xl text-red-500 pixel-font mb-2 animate-pulse">GAME OVER</h2>
+                    <p class="text-slate-300 mb-6 text-center">Score: <span id="finalScore" class="text-white font-bold text-xl"></span></p>
+                    
+                    <div id="saveScoreSection" class="w-full flex flex-col items-center gap-3">
+                        <input type="text" id="playerName" placeholder="YOUR NAME" maxlength="10" class="w-full max-w-[200px] px-4 py-2 bg-slate-800 text-white rounded outline-none focus:ring-2 focus:ring-green-500 text-center font-bold uppercase border border-slate-600 transition-all">
+                        <button id="submitScoreBtn" class="w-full max-w-[200px] px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all transform active:scale-95">
+                            Submit Score
+                        </button>
+                    </div>
+
+                    <button id="restartBtn" class="mt-4 w-full max-w-[200px] px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded transition-all transform active:scale-95">
+                        Play Again
+                    </button>
+                </div>
+                
+                <!-- Start Screen -->
+                <div id="startScreen" class="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 z-10 cursor-pointer hover:bg-black/70 transition-colors">
+                    <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(34,197,94,0.6)] mb-4 animate-bounce">
+                        <svg class="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" fill-rule="evenodd"></path></svg>
+                    </div>
+                    <h2 class="text-xl text-green-400 pixel-font text-center leading-snug">CLICK TO START</h2>
+                </div>
+            </div>
+
+            <!-- Mobile Controls (Visible only on small screens) -->
+            <div class="grid grid-cols-3 gap-2 mt-6 lg:hidden w-full max-w-[250px]">
+                <div></div>
+                <button id="btnUp" class="bg-slate-800 active:bg-slate-700 text-white p-4 rounded-xl flex items-center justify-center shadow-md border border-slate-700 select-none">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>
+                </button>
+                <div></div>
+                <button id="btnLeft" class="bg-slate-800 active:bg-slate-700 text-white p-4 rounded-xl flex items-center justify-center shadow-md border border-slate-700 select-none">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                <button id="btnDown" class="bg-slate-800 active:bg-slate-700 text-white p-4 rounded-xl flex items-center justify-center shadow-md border border-slate-700 select-none">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <button id="btnRight" class="bg-slate-800 active:bg-slate-700 text-white p-4 rounded-xl flex items-center justify-center shadow-md border border-slate-700 select-none">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Leaderboard Panel -->
+        <div class="w-full max-w-[400px] lg:w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl overflow-hidden flex flex-col h-[400px] lg:h-[485px]">
+            <div class="bg-slate-900 px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+                <h3 class="text-green-400 font-bold tracking-wider pixel-font text-xs flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z" clip-rule="evenodd"></path></svg>
+                    GLOBAL TOP 10
+                </h3>
+                <div id="connectionStatus" class="w-2 h-2 rounded-full bg-red-500 animate-pulse" title="Connecting..."></div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto scrollbar-hide p-2" id="leaderboardList">
+                <div class="flex flex-col items-center justify-center h-full text-slate-500 text-sm">
+                    <svg class="animate-spin h-6 w-6 mb-2 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading scores...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Logic & Game Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- FIREBASE CONFIGURATION ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'snake-game-neon';
+        // Provide dummy config to prevent crashing if running locally without platform injection
+        const dummyConfig = {
+            apiKey: "dummy", authDomain: "dummy", projectId: "dummy", storageBucket: "dummy", messagingSenderId: "dummy", appId: "dummy"
+        };
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : dummyConfig;
+
+        let app, db, auth, user;
+        let isOnline = false;
+
+        async function initFirebase() {
+            try {
+                if (firebaseConfig.apiKey !== "dummy") {
+                    app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    // Authentication
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    user = auth.currentUser;
+                    isOnline = true;
+                    document.getElementById('connectionStatus').classList.replace('bg-red-500', 'bg-green-500');
+                    document.getElementById('connectionStatus').classList.remove('animate-pulse');
+                    
+                    fetchLeaderboard();
+                } else {
+                    document.getElementById('leaderboardList').innerHTML = `<div class="p-4 text-center text-slate-500 text-xs">Cloud features unavailable. Running locally.</div>`;
+                }
+            } catch (error) {
+                console.error("Firebase init error:", error);
+                document.getElementById('leaderboardList').innerHTML = `<div class="p-4 text-center text-red-400 text-xs">Failed to connect to database.</div>`;
+            }
+        }
+
+        function fetchLeaderboard() {
+            if (!user) return;
+            const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            
+            // Note: Adhering to Rule 2 (No Complex Queries), fetching all & sorting in memory
+            onSnapshot(lbRef, (snapshot) => {
+                let scores = [];
+                snapshot.forEach(doc => {
+                    scores.push({ id: doc.id, ...doc.data() });
+                });
+
+                // Sort descending by score, then slice top 10
+                scores.sort((a, b) => b.score - a.score);
+                const topScores = scores.slice(0, 10);
+                
+                renderLeaderboard(topScores);
+                
+                // Update local high score based on top player if our score is lower
+                if (topScores.length > 0 && topScores[0].score > highScore) {
+                    highScore = topScores[0].score;
+                    document.getElementById('highScoreDisplay').textContent = highScore;
+                }
+
+            }, (error) => {
+                console.error("Snapshot error:", error);
+            });
+        }
+
+        async function saveScoreToFirebase(playerName, finalScore) {
+            if (!user || !isOnline) return;
+            const lbRef = collection(db, 'artifacts', appId, 'public', 'data', 'leaderboard');
+            try {
+                await addDoc(lbRef, {
+                    name: playerName.toUpperCase() || 'ANONYMOUS',
+                    score: finalScore,
+                    timestamp: serverTimestamp(),
+                    userId: user.uid
+                });
+            } catch (error) {
+                console.error("Error saving score:", error);
+            }
+        }
+
+        function renderLeaderboard(scores) {
+            const listContainer = document.getElementById('leaderboardList');
+            if (scores.length === 0) {
+                listContainer.innerHTML = `<div class="text-center text-slate-500 text-sm mt-8">No scores yet. Be the first!</div>`;
+                return;
+            }
+
+            let html = '';
+            scores.forEach((entry, index) => {
+                const isTop3 = index < 3;
+                let rankColor = 'text-slate-400';
+                if (index === 0) rankColor = 'text-yellow-400 drop-shadow-[0_0_5px_rgba(250,204,21,0.8)] font-bold';
+                else if (index === 1) rankColor = 'text-slate-300 font-bold';
+                else if (index === 2) rankColor = 'text-amber-600 font-bold';
+
+                html += `
+                    <div class="flex justify-between items-center p-3 mb-2 rounded-lg bg-slate-800/50 border ${isTop3 ? 'border-slate-600' : 'border-transparent'} hover:bg-slate-700 transition-colors">
+                        <div class="flex items-center gap-3">
+                            <span class="${rankColor} w-6 text-center font-bold">#${index + 1}</span>
+                            <span class="text-white font-bold truncate max-w-[120px]">${entry.name}</span>
+                        </div>
+                        <span class="text-green-400 pixel-font text-xs">${entry.score}</span>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        // Initialize Firebase
+        initFirebase();
+
+
+        // --- GAME LOGIC ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        
+        let snake = [];
+        let food = { x: 0, y: 0 };
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let highScore = 0;
+        
+        let gameLoop;
+        let gameSpeed = 100; // ms per frame
+        let isGameRunning = false;
+        let changingDirection = false;
+
+        const startScreen = document.getElementById('startScreen');
+        const gameOverModal = document.getElementById('gameOverModal');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const finalScoreDisplay = document.getElementById('finalScore');
+        
+        // Input Handling
+        document.addEventListener('keydown', changeDirection);
+        startScreen.addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        
+        document.getElementById('submitScoreBtn').addEventListener('click', async () => {
+            const nameInput = document.getElementById('playerName').value.trim();
+            const btn = document.getElementById('submitScoreBtn');
+            btn.disabled = true;
+            btn.textContent = "Saving...";
+            
+            await saveScoreToFirebase(nameInput || 'PLAYER', score);
+            
+            // Hide save section after saving
+            document.getElementById('saveScoreSection').classList.add('hidden');
+            btn.disabled = false;
+            btn.textContent = "Submit Score";
+        });
+
+        // Mobile Controls
+        const handleTouchControl = (newDx, newDy) => {
+            if (changingDirection || !isGameRunning) return;
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if (newDx === 1 && !goingLeft) { dx = 1; dy = 0; }
+            if (newDx === -1 && !goingRight) { dx = -1; dy = 0; }
+            if (newDy === -1 && !goingDown) { dx = 0; dy = -1; }
+            if (newDy === 1 && !goingUp) { dx = 0; dy = 1; }
+            
+            changingDirection = true;
+        };
+
+        document.getElementById('btnUp').addEventListener('touchstart', (e) => { e.preventDefault(); handleTouchControl(0, -1); });
+        document.getElementById('btnUp').addEventListener('mousedown', () => handleTouchControl(0, -1));
+        document.getElementById('btnDown').addEventListener('touchstart', (e) => { e.preventDefault(); handleTouchControl(0, 1); });
+        document.getElementById('btnDown').addEventListener('mousedown', () => handleTouchControl(0, 1));
+        document.getElementById('btnLeft').addEventListener('touchstart', (e) => { e.preventDefault(); handleTouchControl(-1, 0); });
+        document.getElementById('btnLeft').addEventListener('mousedown', () => handleTouchControl(-1, 0));
+        document.getElementById('btnRight').addEventListener('touchstart', (e) => { e.preventDefault(); handleTouchControl(1, 0); });
+        document.getElementById('btnRight').addEventListener('mousedown', () => handleTouchControl(1, 0));
+
+        function initGame() {
+            snake = [
+                { x: 10, y: 10 },
+                { x: 10, y: 11 },
+                { x: 10, y: 12 }
+            ];
+            dx = 0;
+            dy = -1;
+            score = 0;
+            gameSpeed = 120;
+            scoreDisplay.textContent = score;
+            spawnFood();
+            
+            document.getElementById('saveScoreSection').classList.remove('hidden');
+            document.getElementById('playerName').value = '';
+        }
+
+        function startGame() {
+            startScreen.classList.add('hidden');
+            gameOverModal.classList.add('hidden');
+            gameOverModal.classList.remove('flex');
+            
+            initGame();
+            isGameRunning = true;
+            if (gameLoop) clearTimeout(gameLoop);
+            main();
+        }
+
+        function main() {
+            if (!isGameRunning) return;
+
+            if (hasGameEnded()) {
+                isGameRunning = false;
+                showGameOver();
+                return;
+            }
+
+            changingDirection = false;
+            gameLoop = setTimeout(() => {
+                clearCanvas();
+                drawFood();
+                advanceSnake();
+                drawSnake();
+                main();
+            }, gameSpeed);
+        }
+
+        function clearCanvas() {
+            ctx.fillStyle = '#050505';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid faintly
+            ctx.strokeStyle = '#112211';
+            ctx.lineWidth = 0.5;
+            for(let i=0; i<=tileCount; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i*gridSize, 0);
+                ctx.lineTo(i*gridSize, canvas.height);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(0, i*gridSize);
+                ctx.lineTo(canvas.width, i*gridSize);
+                ctx.stroke();
+            }
+        }
+
+        function drawSnake() {
+            snake.forEach((part, index) => {
+                // Head is brighter neon
+                if (index === 0) {
+                    ctx.fillStyle = '#4ade80'; // Tailwind green-400
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#22c55e';
+                } else {
+                    ctx.fillStyle = '#22c55e'; // Tailwind green-500
+                    ctx.shadowBlur = 0;
+                }
+                
+                ctx.strokeStyle = '#050505';
+                ctx.lineWidth = 1;
+                
+                // Slight padding for individual blocks
+                ctx.fillRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+                ctx.strokeRect(part.x * gridSize + 1, part.y * gridSize + 1, gridSize - 2, gridSize - 2);
+            });
+            ctx.shadowBlur = 0; // Reset
+        }
+
+        function advanceSnake() {
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+            snake.unshift(head); // Add new head
+
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreDisplay.textContent = score;
+                
+                // Speed up slightly
+                if (gameSpeed > 60) gameSpeed -= 2;
+                
+                spawnFood();
+            } else {
+                snake.pop(); // Remove tail
+            }
+        }
+
+        function drawFood() {
+            ctx.fillStyle = '#ef4444'; // Tailwind red-500
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = '#ef4444';
+            
+            // Draw circle for food
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize / 2, 
+                food.y * gridSize + gridSize / 2, 
+                gridSize / 2 - 2, 
+                0, 2 * Math.PI
+            );
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function spawnFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+
+            // Ensure food doesn't spawn on snake body
+            snake.forEach(function isFoodOnSnake(part) {
+                if (part.x === food.x && part.y === food.y) spawnFood();
+            });
+        }
+
+        function changeDirection(event) {
+            if (changingDirection || !isGameRunning) return;
+
+            // Arrow keys and WASD
+            const LEFT_KEY = 37;
+            const RIGHT_KEY = 39;
+            const UP_KEY = 38;
+            const DOWN_KEY = 40;
+            const W_KEY = 87;
+            const A_KEY = 65;
+            const S_KEY = 83;
+            const D_KEY = 68;
+
+            const keyPressed = event.keyCode;
+            
+            const goingUp = dy === -1;
+            const goingDown = dy === 1;
+            const goingRight = dx === 1;
+            const goingLeft = dx === -1;
+
+            if ((keyPressed === LEFT_KEY || keyPressed === A_KEY) && !goingRight) {
+                dx = -1; dy = 0; changingDirection = true; event.preventDefault();
+            }
+            if ((keyPressed === UP_KEY || keyPressed === W_KEY) && !goingDown) {
+                dx = 0; dy = -1; changingDirection = true; event.preventDefault();
+            }
+            if ((keyPressed === RIGHT_KEY || keyPressed === D_KEY) && !goingLeft) {
+                dx = 1; dy = 0; changingDirection = true; event.preventDefault();
+            }
+            if ((keyPressed === DOWN_KEY || keyPressed === S_KEY) && !goingUp) {
+                dx = 0; dy = 1; changingDirection = true; event.preventDefault();
+            }
+        }
+
+        function hasGameEnded() {
+            // Self collision
+            for (let i = 4; i < snake.length; i++) {
+                if (snake[i].x === snake[0].x && snake[i].y === snake[0].y) return true;
+            }
+
+            // Wall collision
+            const hitLeftWall = snake[0].x < 0;
+            const hitRightWall = snake[0].x >= tileCount;
+            const hitTopWall = snake[0].y < 0;
+            const hitBottomWall = snake[0].y >= tileCount;
+
+            return hitLeftWall || hitRightWall || hitTopWall || hitBottomWall;
+        }
+
+        function showGameOver() {
+            finalScoreDisplay.textContent = score;
+            gameOverModal.classList.remove('hidden');
+            gameOverModal.classList.add('flex');
+            
+            if (score > highScore) {
+                highScore = score;
+                document.getElementById('highScoreDisplay').textContent = highScore;
+            }
+            
+            if (!isOnline) {
+                document.getElementById('saveScoreSection').classList.add('hidden');
+            } else {
+                document.getElementById('playerName').focus();
+            }
+        }
+
+        // Draw initial static state
+        clearCanvas();
+
+    </script>
+</body>
+</html>
